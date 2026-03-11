@@ -1,0 +1,33 @@
+# ── macOS ──────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── Go ─────────────────────────────────────────
+# Compiled binaries
+*.exe
+*.out
+/arkynServer/middleware/uploads/
+
+# ── Xcode ──────────────────────────────────────
+# User-specific settings
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.moved-aside
+
+# Build products
+DerivedData/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Carthage
+Carthage/Build/
+
+# CocoaPods (brug ikke, men for en sikkerheds skyld)
+Pods/
