@@ -6,70 +6,79 @@ struct CameraView: View {
     @State private var tempImage: UIImage?
     @State private var tempVideoURL: URL?
     @State private var isServerConnected: Bool? = nil  // nil = loading
+    @State private var showChat = false
 
     var body: some View {
-        VStack(spacing: 24) {
+        NavigationStack {
+            VStack(spacing: 24) {
 
-            // Server status badge
-            serverStatusBadge
+                // Server status badge
+                serverStatusBadge
 
-            previewSection
+                previewSection
 
-            Button(action: {
-                viewModel.openCamera()
-            }) {
-                Text("Tag media")
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-            }
+                Button(action: {
+                    viewModel.openCamera()
+                }) {
+                    Text("Tag media")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                }
 
-            if viewModel.selectedMedia != nil {
-                HStack(spacing: 12) {
-                    Button("Tag nyt") {
-                        viewModel.clearMedia()
-                        viewModel.openCamera()
-                    }
+                if viewModel.selectedMedia != nil {
+                    HStack(spacing: 12) {
+                        Button("Tag nyt") {
+                            viewModel.clearMedia()
+                            viewModel.openCamera()
+                        }
+                        .buttonStyle(.bordered)
 
-                    Button("Brug dette") {
-                        print("Brug valgt media")
-                    }
-
-                    Button("Analyser") {
-                        print("Analyser valgt media")
+                        Button("Start chat") {
+                            showChat = true
+                        }
+                        .buttonStyle(.borderedProminent)
                     }
                 }
             }
-        }
-        .padding()
-        .task {
-            await checkServer()
-        }
-        .fullScreenCover(isPresented: $viewModel.showImagePicker) {
-            ImagePicker(
-                image: Binding(
-                    get: { tempImage },
-                    set: { newImage in
-                        tempImage = newImage
-                        if let newImage {
-                            viewModel.setImage(newImage)
+            .padding()
+            .navigationTitle("Arkyn")
+            .navigationBarTitleDisplayMode(.inline)
+            .task {
+                await checkServer()
+            }
+            .fullScreenCover(isPresented: $viewModel.showImagePicker) {
+                ImagePicker(
+                    image: Binding(
+                        get: { tempImage },
+                        set: { newImage in
+                            tempImage = newImage
+                            if let newImage {
+                                viewModel.setImage(newImage)
+                            }
                         }
-                    }
-                ),
-                videoURL: Binding(
-                    get: { tempVideoURL },
-                    set: { newVideoURL in
-                        tempVideoURL = newVideoURL
-                        if let newVideoURL {
-                            viewModel.setVideo(newVideoURL)
+                    ),
+                    videoURL: Binding(
+                        get: { tempVideoURL },
+                        set: { newVideoURL in
+                            tempVideoURL = newVideoURL
+                            if let newVideoURL {
+                                viewModel.setVideo(newVideoURL)
+                            }
                         }
-                    }
-                ),
-                sourceType: .camera
-            )
-            .ignoresSafeArea()
+                    ),
+                    sourceType: .camera
+                )
+                .ignoresSafeArea()
+            }
+            .fullScreenCover(isPresented: $showChat) {
+                ChatView(initialMedia: viewModel.selectedMedia) {
+                    showChat = false
+                    viewModel.clearMedia()
+                }
+            }
         }
     }
 

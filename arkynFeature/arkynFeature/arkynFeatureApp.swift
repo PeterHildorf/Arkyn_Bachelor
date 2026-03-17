@@ -11,7 +11,7 @@ import SwiftUI
 struct arkynFeatureApp: App {
     var body: some Scene {
         WindowGroup {
-            CameraView()
+            MainTabView()
         }
     }
 }
