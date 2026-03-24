@@ -8,7 +8,7 @@
 set -e  # Stop ved fejl
 
 SERVER="user@130.225.170.229"
-REMOTE_DIR="~/arkyn-middleware"
+REMOTE_MIDDLEWARE="~/arkyn-middleware/arkynServer/middleware"
 
 echo "🚀 Arkyn Deploy"
 echo "───────────────────────────"
@@ -33,6 +33,7 @@ ssh $SERVER << 'ENDSSH'
   echo "  → git pull..."
   git pull origin main
   echo "  → go build..."
+  cd arkynServer/middleware
   go build -o arkyn-server ./cmd/server/
   echo "  → restart service..."
   sudo systemctl restart arkyn
