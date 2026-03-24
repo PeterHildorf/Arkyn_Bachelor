@@ -7,7 +7,14 @@
 # Compiled binaries
 *.exe
 *.out
+arkyn-server
 /arkynServer/middleware/uploads/
+/arkynServer/middleware/arkyn-server
+
+# Environment / secrets (never commit API keys!)
+.env
+.env.local
+*.env
 
 # ── Xcode ──────────────────────────────────────
 # User-specific settings

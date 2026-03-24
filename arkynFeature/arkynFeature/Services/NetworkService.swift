@@ -2,7 +2,7 @@ import Foundation
 
 class NetworkService {
     static let shared = NetworkService()
-    private let baseURL = "http://localhost:8080"
+    private let baseURL = "http://130.225.170.229:8080"
 
     private init() {}
 
