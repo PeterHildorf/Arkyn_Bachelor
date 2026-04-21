@@ -1,6 +1,8 @@
 #!/bin/bash
 # ─────────────────────────────────────────────
 # Arkyn Deploy Script
+# Sørg for at Homebrew's Go er tilgængeligt
+export PATH="/opt/homebrew/bin:/usr/local/go/bin:$PATH"
 # Brug: ./deploy.sh
 # Pusher til GitHub og deployer til DTU-server
 # ─────────────────────────────────────────────
