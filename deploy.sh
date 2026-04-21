@@ -37,15 +37,14 @@ echo "  → Binær bygget: $(du -sh $LOCAL_MIDDLEWARE/arkyn-server | cut -f1)"
 
 # 4. Kopiér binær til serveren
 echo "📤 Kopierer binær til serveren..."
-ssh "$SERVER" "mkdir -p ~/arkyn-middleware/arkynServer/middleware"
-scp "$LOCAL_MIDDLEWARE/arkyn-server" "$SERVER:~/arkyn-middleware/arkynServer/middleware/arkyn-server"
+scp "$LOCAL_MIDDLEWARE/arkyn-server" "$SERVER:/home/user/arkyn-middleware/arkynServer/middleware/arkyn-server"
 
 # 5. SSH ind og genstart servicen
 echo "🔄 Genstarter service på DTU-server..."
 ssh "$SERVER" << 'ENDSSH'
   set -e
   echo "  → Sætter executable-bit..."
-  chmod +x ~/arkyn-middleware/arkynServer/middleware/arkyn-server
+  chmod +x /home/user/arkyn-middleware/arkynServer/middleware/arkyn-server
   echo "  → Genstarter arkyn service..."
   sudo systemctl restart arkyn
   sleep 1
