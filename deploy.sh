@@ -35,11 +35,15 @@ GOOS=linux GOARCH=amd64 go build -o arkyn-server ./cmd/server/
 cd - > /dev/null
 echo "  → Binær bygget: $(du -sh $LOCAL_MIDDLEWARE/arkyn-server | cut -f1)"
 
-# 4. Kopiér binær til serveren
+# 4. Stop servicen FØR vi kopierer
+echo "⏹️  Stopper arkyn service..."
+ssh "$SERVER" "sudo systemctl stop arkyn"
+
+# 5. Kopiér binær til serveren
 echo "📤 Kopierer binær til serveren..."
 scp "$LOCAL_MIDDLEWARE/arkyn-server" "$SERVER:/home/user/arkyn-middleware/arkynServer/middleware/arkyn-server"
 
-# 5. SSH ind og genstart servicen
+# 6. SSH ind og genstart servicen
 echo "🔄 Genstarter service på DTU-server..."
 ssh "$SERVER" << 'ENDSSH'
   set -e
