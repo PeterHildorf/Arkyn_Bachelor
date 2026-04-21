@@ -37,6 +37,7 @@ echo "  → Binær bygget: $(du -sh $LOCAL_MIDDLEWARE/arkyn-server | cut -f1)"
 
 # 4. Kopiér binær til serveren
 echo "📤 Kopierer binær til serveren..."
+ssh "$SERVER" "mkdir -p ~/arkyn-middleware/arkynServer/middleware"
 scp "$LOCAL_MIDDLEWARE/arkyn-server" "$SERVER:~/arkyn-middleware/arkynServer/middleware/arkyn-server"
 
 # 5. SSH ind og genstart servicen
