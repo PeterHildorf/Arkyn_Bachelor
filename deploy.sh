@@ -9,6 +9,7 @@ set -e  # Stop ved fejl
 
 SERVER="user@130.225.170.229"
 REMOTE_MIDDLEWARE="~/arkyn-middleware/arkynServer/middleware"
+LOCAL_MIDDLEWARE="./arkynServer/middleware"
 
 echo "🚀 Arkyn Deploy"
 echo "───────────────────────────"
@@ -25,19 +26,27 @@ fi
 echo "⬆️  Pusher til GitHub..."
 git push origin main
 
-# 3. SSH ind og opdater serveren
-echo "🔄 Deployer til DTU-server..."
-ssh $SERVER << 'ENDSSH'
+# 3. Cross-kompilér til Linux (amd64) lokalt
+echo "🔨 Bygger Linux-binær lokalt..."
+cd "$LOCAL_MIDDLEWARE"
+GOOS=linux GOARCH=amd64 go build -o arkyn-server ./cmd/server/
+cd - > /dev/null
+echo "  → Binær bygget: $(du -sh $LOCAL_MIDDLEWARE/arkyn-server | cut -f1)"
+
+# 4. Kopiér binær til serveren
+echo "📤 Kopierer binær til serveren..."
+scp "$LOCAL_MIDDLEWARE/arkyn-server" "$SERVER:~/arkyn-middleware/arkynServer/middleware/arkyn-server"
+
+# 5. SSH ind og genstart servicen
+echo "🔄 Genstarter service på DTU-server..."
+ssh "$SERVER" << 'ENDSSH'
   set -e
-  cd ~/arkyn-middleware
-  echo "  → git pull..."
-  git pull origin main
-  echo "  → go build..."
-  cd arkynServer/middleware
-  go build -o arkyn-server ./cmd/server/
-  echo "  → restart service..."
+  echo "  → Sætter executable-bit..."
+  chmod +x ~/arkyn-middleware/arkynServer/middleware/arkyn-server
+  echo "  → Genstarter arkyn service..."
   sudo systemctl restart arkyn
-  echo "  → status:"
+  sleep 1
+  echo "  → Status:"
   sudo systemctl is-active arkyn
 ENDSSH
 
