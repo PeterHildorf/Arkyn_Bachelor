@@ -22,24 +22,31 @@ class NetworkService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 60
-        
+
         let boundary = UUID().uuidString
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        
+        request.setValue(
+            "multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
         var body = Data()
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"image\"; filename=\"image.jpg\"\r\n".data(using: .utf8)!)
+        body.append(
+            "Content-Disposition: form-data; name=\"image\"; filename=\"image.jpg\"\r\n".data(
+                using: .utf8)!)
         body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
         body.append(imageData)
         body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
-        
+
         request.httpBody = body
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
         guard httpResponse.statusCode == 200 else {
-            if let errorBody = try? JSONDecoder().decode([String: String].self, from: data), let msg = errorBody["error"] {
+            if let errorBody = try? JSONDecoder().decode([String: String].self, from: data),
+                let msg = errorBody["error"]
+            {
                 throw NetworkError.serverError(msg)
             }
             throw URLError(.badServerResponse)
@@ -49,7 +56,9 @@ class NetworkService {
     }
 
     // MARK: - API v1: Analyze Target
-    func analyze(targetLabel: String, targetValue: String, context: [ExtractedEntity]) async throws -> MaintenanceGuidance {
+    func analyze(targetLabel: String, targetValue: String, context: [ExtractedEntity]) async throws
+        -> MaintenanceGuidance
+    {
         guard let url = URL(string: "\(baseURL)/api/v1/analyze") else {
             throw URLError(.badURL)
         }
@@ -60,7 +69,9 @@ class NetworkService {
         request.timeoutInterval = 60
 
         // Find best machine model
-        let modelEntity = context.first { $0.label.lowercased() == "model" || $0.label.lowercased() == "maskinmodel" }
+        let modelEntity = context.first {
+            $0.label.lowercased() == "model" || $0.label.lowercased() == "maskinmodel"
+        }
         let machineModel = modelEntity?.value ?? targetValue
 
         let requestBody = AnalyzeRequest(
@@ -74,7 +85,9 @@ class NetworkService {
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorBody = try? JSONDecoder().decode([String: String].self, from: data), let msg = errorBody["error"] {
+            if let errorBody = try? JSONDecoder().decode([String: String].self, from: data),
+                let msg = errorBody["error"]
+            {
                 throw NetworkError.serverError(msg)
             }
             throw URLError(.badServerResponse)
@@ -83,13 +96,58 @@ class NetworkService {
         return try JSONDecoder().decode(MaintenanceGuidance.self, from: data)
     }
 
-// MARK: - Custom Errors
-enum NetworkError: LocalizedError {
-    case serverError(String)
+    // MARK: - API v1: Chat
+    func sendChatMessage(message: String, imageData: Data?) async throws -> ChatResponse {
+        guard let url = URL(string: "\(baseURL)/api/v1/chat") else {
+            throw URLError(.badURL)
+        }
 
-    var errorDescription: String? {
-        switch self {
-        case .serverError(let msg): return "Serverfejl: \(msg)"
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 60
+
+        let boundary = UUID().uuidString
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var body = Data()
+        // Text field
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"message\"\r\n\r\n".data(using: .utf8)!)
+        body.append(message.data(using: .utf8)!)
+        body.append("\r\n".data(using: .utf8)!)
+        // Optional image field
+        if let imageData {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"image\"; filename=\"image.jpg\"\r\n".data(using: .utf8)!)
+            body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+            body.append(imageData)
+            body.append("\r\n".data(using: .utf8)!)
+        }
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            if let errorBody = try? JSONDecoder().decode([String: String].self, from: data),
+               let msg = errorBody["error"]
+            {
+                throw NetworkError.serverError(msg)
+            }
+            throw URLError(.badServerResponse)
+        }
+
+        return try JSONDecoder().decode(ChatResponse.self, from: data)
+    }
+
+    // MARK: - Custom Errors
+    enum NetworkError: LocalizedError {
+        case serverError(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .serverError(let msg): return "Serverfejl: \(msg)"
+            }
         }
     }
 }

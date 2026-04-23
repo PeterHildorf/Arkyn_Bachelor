@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 const anthropicAPIURL = "https://api.anthropic.com/v1/messages"
@@ -156,7 +157,8 @@ func (c *ClaudeClient) FormatEntities(ctx context.Context, rawText string, confi
 	var result struct {
 		Entities []Entity `json:"entities"`
 	}
-	if err := json.Unmarshal([]byte(text), &result); err != nil {
+	cleanedText := cleanJSONResponse(text)
+	if err := json.Unmarshal([]byte(cleanedText), &result); err != nil {
 		return nil, fmt.Errorf("failed to parse entity JSON from Claude: %w (raw: %s)", err, text)
 	}
 
@@ -230,7 +232,8 @@ func (c *ClaudeClient) AnalyzeTarget(ctx context.Context, req AnalyzeTargetReque
 	}
 
 	var guidance MaintenanceGuidance
-	if err := json.Unmarshal([]byte(text), &guidance); err != nil {
+	cleanedText := cleanJSONResponse(text)
+	if err := json.Unmarshal([]byte(cleanedText), &guidance); err != nil {
 		return nil, fmt.Errorf("failed to parse guidance JSON from Claude: %w (raw: %s)", err, text)
 	}
 
@@ -287,4 +290,18 @@ func (c *ClaudeClient) callClaude(ctx context.Context, payload claudeRequest) (s
 	}
 
 	return claudeResp.Content[0].Text, nil
+}
+
+// cleanJSONResponse removes markdown code block formatting if Claude includes it.
+func cleanJSONResponse(text string) string {
+	text = strings.TrimSpace(text)
+	if strings.HasPrefix(text, "```json") {
+		text = strings.TrimPrefix(text, "```json")
+	} else if strings.HasPrefix(text, "```") {
+		text = strings.TrimPrefix(text, "```")
+	}
+	if strings.HasSuffix(text, "```") {
+		text = strings.TrimSuffix(text, "```")
+	}
+	return strings.TrimSpace(text)
 }

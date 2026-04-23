@@ -62,6 +62,7 @@ struct ChatView: View {
                         Text(error)
                             .font(.caption)
                             .foregroundColor(.primary)
+                            .textSelection(.enabled)
                         Spacer()
                     }
                     .padding(.horizontal, 16)

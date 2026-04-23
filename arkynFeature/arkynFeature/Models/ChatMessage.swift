@@ -89,6 +89,10 @@ struct AnalyzeRequest: Codable {
     }
 }
 
+struct ChatResponse: Codable {
+    let reply: String
+}
+
 struct MaintenanceGuidance: Codable {
     let targetLabel: String
     let targetValue: String
