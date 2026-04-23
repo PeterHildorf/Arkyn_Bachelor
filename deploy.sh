@@ -16,7 +16,14 @@ LOCAL_MIDDLEWARE="./arkynServer/middleware"
 echo "🚀 Arkyn Deploy"
 echo "───────────────────────────"
 
-# 1. Commit lokale ændringer hvis der er nogen
+# 1. Kør lokale tests (Stopper scriptet hvis de fejler pga. set -e)
+echo "🧪 Kører lokale tests..."
+cd "$LOCAL_MIDDLEWARE"
+go test ./...
+cd - > /dev/null
+echo "  → ✅ Alle tests bestået!"
+
+# 2. Commit lokale ændringer hvis der er nogen
 if [[ -n $(git status --porcelain) ]]; then
   echo "📦 Committer lokale ændringer..."
   git add .

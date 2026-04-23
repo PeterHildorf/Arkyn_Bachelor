@@ -7,8 +7,9 @@ import (
 
 // Config holds all runtime configuration for the middleware.
 type Config struct {
-	AnthropicAPIKey string
-	ServerAddr      string
+	AnthropicAPIKey              string
+	GoogleApplicationCredentials string
+	ServerAddr                   string
 }
 
 // Load reads configuration from environment variables.
@@ -19,13 +20,19 @@ func Load() *Config {
 		log.Fatal("ANTHROPIC_API_KEY is not set – add it to your .env file")
 	}
 
+	gcreds := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
+	if gcreds == "" {
+		log.Fatal("GOOGLE_APPLICATION_CREDENTIALS is not set – add it to your .env file")
+	}
+
 	addr := os.Getenv("SERVER_ADDR")
 	if addr == "" {
 		addr = ":8080"
 	}
 
 	return &Config{
-		AnthropicAPIKey: key,
-		ServerAddr:      addr,
+		AnthropicAPIKey:              key,
+		GoogleApplicationCredentials: gcreds,
+		ServerAddr:                   addr,
 	}
 }

@@ -13,63 +13,75 @@ class NetworkService {
         return (response as? HTTPURLResponse)?.statusCode == 200
     }
 
-    // MARK: - Analyze OCR Text
-    /// Sends ocr_text + confidence to POST /analyze and returns the structured response.
-    func analyze(ocrText: String, confidence: Double, mimeType: String = "image/jpeg") async throws -> AnalyzeResponse {
-        guard let url = URL(string: "\(baseURL)/analyze") else {
+    // MARK: - API v1: Extract Entities
+    func extract(imageData: Data) async throws -> ExtractionResult {
+        guard let url = URL(string: "\(baseURL)/api/v1/extract") else {
             throw URLError(.badURL)
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 60 // Claude kan tage ~40 sek
-
-        let body = AnalyzeRequest(ocrText: ocrText, confidence: confidence, mimeType: mimeType)
-        request.httpBody = try JSONEncoder().encode(body)
+        request.timeoutInterval = 60
+        
+        let boundary = UUID().uuidString
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        
+        var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"image\"; filename=\"image.jpg\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+        body.append(imageData)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+        
+        request.httpBody = body
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw URLError(.badServerResponse)
-        }
-
+        guard let httpResponse = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         guard httpResponse.statusCode == 200 else {
-            // Forsøg at parse fejlbesked fra server
-            if let errorBody = try? JSONDecoder().decode([String: String].self, from: data),
-               let message = errorBody["error"] {
-                throw NetworkError.serverError(message)
+            if let errorBody = try? JSONDecoder().decode([String: String].self, from: data), let msg = errorBody["error"] {
+                throw NetworkError.serverError(msg)
             }
             throw URLError(.badServerResponse)
         }
 
-        return try JSONDecoder().decode(AnalyzeResponse.self, from: data)
+        return try JSONDecoder().decode(ExtractionResult.self, from: data)
     }
 
-    // MARK: - Legacy Chat (bevares til evt. brug)
-    func sendChatMessage(message: String, imageData: Data? = nil, conversationId: String? = nil) async throws -> ChatResponse {
-        guard let url = URL(string: "\(baseURL)/chat") else {
+    // MARK: - API v1: Analyze Target
+    func analyze(targetLabel: String, targetValue: String, context: [ExtractedEntity]) async throws -> MaintenanceGuidance {
+        guard let url = URL(string: "\(baseURL)/api/v1/analyze") else {
             throw URLError(.badURL)
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 60
 
-        let imageBase64 = imageData?.base64EncodedString()
-        let chatRequest = ChatRequest(message: message, imageData: imageBase64, conversationId: conversationId)
-        request.httpBody = try JSONEncoder().encode(chatRequest)
+        // Find best machine model
+        let modelEntity = context.first { $0.label.lowercased() == "model" || $0.label.lowercased() == "maskinmodel" }
+        let machineModel = modelEntity?.value ?? targetValue
+
+        let requestBody = AnalyzeRequest(
+            targetLabel: targetLabel,
+            targetValue: targetValue,
+            machineModel: machineModel,
+            context: context
+        )
+        request.httpBody = try JSONEncoder().encode(requestBody)
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            if let errorBody = try? JSONDecoder().decode([String: String].self, from: data), let msg = errorBody["error"] {
+                throw NetworkError.serverError(msg)
+            }
             throw URLError(.badServerResponse)
         }
 
-        return try JSONDecoder().decode(ChatResponse.self, from: data)
+        return try JSONDecoder().decode(MaintenanceGuidance.self, from: data)
     }
-}
 
 // MARK: - Custom Errors
 enum NetworkError: LocalizedError {

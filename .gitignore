@@ -38,3 +38,6 @@ Carthage/Build/
 
 # CocoaPods (brug ikke, men for en sikkerheds skyld)
 Pods/
+
+# Google API Keys
+google_credentials.json

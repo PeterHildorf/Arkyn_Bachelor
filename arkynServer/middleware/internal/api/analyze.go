@@ -7,72 +7,47 @@ import (
 	"arkyn/middleware/internal/ai"
 )
 
-// analyzeRequest is the expected JSON body for POST /analyze.
+// analyzeRequest is the JSON body expected by POST /api/v1/analyze.
+// The iOS app sends the entity the technician tapped "analyze" on,
+// plus any other entities from extract as hidden context.
 type analyzeRequest struct {
-	ImageBase64 string  `json:"image_base64"` // Base64-encoded image or video frame
-	MimeType    string  `json:"mime_type"`    // e.g. "image/jpeg"
-	OCRText     string  `json:"ocr_text"`     // Pre-extracted OCR text (from mobile app or server-side OCR)
-	Confidence  float64 `json:"confidence"`   // OCR confidence score (0.0 – 1.0)
+	TargetLabel  string      `json:"target_label"`  // e.g. "Model"
+	TargetValue  string      `json:"target_value"`  // e.g. "SEW Eurodrive MDX61B"
+	MachineModel string      `json:"machine_model"` // Best‑guess model (may equal TargetValue)
+	Context      []ai.Entity `json:"context"`       // Other entities from the extract result
 }
 
-// analyzeResponse is the JSON returned after processing.
-type analyzeResponse struct {
-	Status                  string   `json:"status"`
-	EquipmentIdentification string   `json:"equipment_identification"`
-	GeneralGuidance         []string `json:"general_guidance"`
-	SafetyNotes             []string `json:"safety_notes"`
-	UncertaintyLevel        string   `json:"uncertainty_level"`
-	FlaggedForReview        bool     `json:"flagged_for_review"`
-}
-
-// confidenceThreshold defines the minimum OCR confidence required before
-// sending to AI. Below this, the request is flagged for manual review.
-const confidenceThreshold = 0.60
-
-// NewAnalyzeHandler returns an HTTP handler with the Claude client injected.
+// NewAnalyzeHandler returns the handler for POST /api/v1/analyze.
 func NewAnalyzeHandler(claude *ai.ClaudeClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// ----------------------------------------------------------------
+		// 1. Decode JSON body
+		// ----------------------------------------------------------------
 		var req analyzeRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{
-				"error": "invalid JSON body",
-			})
+			writeJSON(w, http.StatusBadRequest, errorResponse("invalid JSON body"))
 			return
 		}
 
-		if req.OCRText == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]string{
-				"error": "ocr_text is required",
-			})
+		if req.TargetLabel == "" || req.TargetValue == "" {
+			writeJSON(w, http.StatusBadRequest, errorResponse("target_label and target_value are required"))
 			return
 		}
 
-		// Flag low-confidence OCR results before sending to AI
-		if req.Confidence > 0 && req.Confidence < confidenceThreshold {
-			writeJSON(w, http.StatusOK, analyzeResponse{
-				Status:           "flagged",
-				FlaggedForReview: true,
-				UncertaintyLevel: "high",
-				SafetyNotes:      []string{"OCR confidence is low – please retake the image or verify manually."},
-			})
-			return
-		}
-
-		guidance, err := claude.AnalyzeOCRText(r.Context(), req.OCRText, req.Confidence)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{
-				"error": err.Error(),
-			})
-			return
-		}
-
-		writeJSON(w, http.StatusOK, analyzeResponse{
-			Status:                  "ok",
-			EquipmentIdentification: guidance.EquipmentIdentification,
-			GeneralGuidance:         guidance.GeneralGuidance,
-			SafetyNotes:             guidance.SafetyNotes,
-			UncertaintyLevel:        guidance.UncertaintyLevel,
-			FlaggedForReview:        false,
+		// ----------------------------------------------------------------
+		// 2. Call Claude for focused maintenance guidance
+		// ----------------------------------------------------------------
+		guidance, err := claude.AnalyzeTarget(r.Context(), ai.AnalyzeTargetRequest{
+			TargetLabel:  req.TargetLabel,
+			TargetValue:  req.TargetValue,
+			MachineModel: req.MachineModel,
+			Context:      req.Context,
 		})
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, errorResponse(err.Error()))
+			return
+		}
+
+		writeJSON(w, http.StatusOK, guidance)
 	}
 }

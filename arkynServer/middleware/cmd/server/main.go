@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"arkyn/middleware/internal/ai"
 	"arkyn/middleware/internal/api"
 	"arkyn/middleware/internal/config"
+	"arkyn/middleware/internal/ocr"
 )
 
 func main() {
@@ -22,9 +24,17 @@ func main() {
 
 	cfg := config.Load()
 
+	ctx := context.Background()
+
+	visionClient, err := ocr.NewVisionClient(ctx)
+	if err != nil {
+		log.Fatalf("Failed to initialize Vision OCR client: %v", err)
+	}
+	defer visionClient.Close()
+
 	claudeClient := ai.NewClaudeClient(cfg.AnthropicAPIKey)
 
-	router := api.NewRouter(claudeClient)
+	router := api.NewRouter(visionClient, claudeClient)
 
 	log.Printf("Arkyn middleware server starting on %s", cfg.ServerAddr)
 	if err := http.ListenAndServe(cfg.ServerAddr, router); err != nil {

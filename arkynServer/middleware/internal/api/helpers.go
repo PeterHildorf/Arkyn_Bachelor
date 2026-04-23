@@ -13,3 +13,8 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 	}
 }
+
+// errorResponse returns a simple map suitable for writeJSON error replies.
+func errorResponse(msg string) map[string]string {
+	return map[string]string{"error": msg}
+}
