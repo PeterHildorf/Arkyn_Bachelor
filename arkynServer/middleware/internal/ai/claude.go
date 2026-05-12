@@ -295,8 +295,16 @@ func (c *ClaudeClient) callClaude(ctx context.Context, payload claudeRequest) (s
 	return claudeResp.Content[0].Text, nil
 }
 
-// cleanJSONResponse removes markdown code block formatting if Claude includes it.
+// cleanJSONResponse extracts the JSON object from the text, ignoring markdown wrappers or preamble text.
 func cleanJSONResponse(text string) string {
+	startIdx := strings.Index(text, "{")
+	endIdx := strings.LastIndex(text, "}")
+	
+	if startIdx != -1 && endIdx != -1 && startIdx < endIdx {
+		return text[startIdx : endIdx+1]
+	}
+
+	// Fallback if no braces are found
 	text = strings.TrimSpace(text)
 	if strings.HasPrefix(text, "```json") {
 		text = strings.TrimPrefix(text, "```json")
