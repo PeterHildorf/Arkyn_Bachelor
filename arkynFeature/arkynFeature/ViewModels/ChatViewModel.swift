@@ -15,6 +15,8 @@ final class ChatViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var scrollTrigger: Int = 0
 
+    @AppStorage("preferredLanguage") var preferredLanguage: String = "da"
+
     // MARK: - Phase 1: Extract Image
     func extractImage(_ imageData: Data, replaceMessageId: UUID? = nil) async {
         let placeholderId: UUID
@@ -71,6 +73,62 @@ final class ChatViewModel: ObservableObject {
         isLoading = false
     }
 
+    // MARK: - Phase 1: Extract Video
+    func extractVideo(_ videoURL: URL, replaceMessageId: UUID? = nil) async {
+        let placeholderId: UUID
+        
+        if let existingId = replaceMessageId {
+            placeholderId = existingId
+            let placeholder = ChatMessage(id: placeholderId, kind: .loading(hint: "Analyserer video…"), isFromUser: false)
+            if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
+                messages[idx] = placeholder
+            }
+        } else {
+            let userMessage = ChatMessage(text: "", isFromUser: true, videoURL: videoURL)
+            placeholderId = UUID()
+            let placeholder = ChatMessage(
+                id: placeholderId,
+                kind: .loading(hint: "Analyserer video…"),
+                isFromUser: false
+            )
+            messages.append(contentsOf: [userMessage, placeholder])
+        }
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            let response = try await NetworkService.shared.extract(videoURL: videoURL)
+
+            let result: ChatMessage
+            if response.flaggedForReview {
+                result = ChatMessage(
+                    id: placeholderId,
+                    kind: .flagged(reason: "Billedkvaliteten eller OCR-confidence er for lav. Tag en ny, tydelig video."),
+                    isFromUser: false
+                )
+            } else {
+                result = ChatMessage(
+                    id: placeholderId,
+                    kind: .extractedEntities(entities: response.entities, context: response.entities),
+                    isFromUser: false
+                )
+            }
+            // Replace placeholder in-place
+            if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
+                messages[idx] = result
+                scrollTrigger += 1
+            }
+        } catch {
+            let errorMsg = ChatMessage(id: placeholderId, kind: .error(reason: "Udtrækning fejlede: \(error.localizedDescription)", context: .extractVideo(videoURL: videoURL)), isFromUser: false)
+            if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
+                messages[idx] = errorMsg
+                scrollTrigger += 1
+            }
+        }
+
+        isLoading = false
+    }
+
     // MARK: - Phase 2: Analyze Entity
     func analyzeEntity(_ entity: ExtractedEntity, context: [ExtractedEntity], replaceMessageId: UUID? = nil) async {
         let placeholderId: UUID
@@ -98,7 +156,8 @@ final class ChatViewModel: ObservableObject {
             let response = try await NetworkService.shared.analyze(
                 targetLabel: entity.label,
                 targetValue: entity.value,
-                context: context
+                context: context,
+                language: preferredLanguage
             )
             let result = ChatMessage(id: placeholderId, kind: .guidance(response), isFromUser: false)
             if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
@@ -187,6 +246,8 @@ final class ChatViewModel: ObservableObject {
         switch context {
         case .extractImage(let imageData):
             await extractImage(imageData, replaceMessageId: messageId)
+        case .extractVideo(let videoURL):
+            await extractVideo(videoURL, replaceMessageId: messageId)
         case .analyzeEntity(let entity, let context):
             await analyzeEntity(entity, context: context, replaceMessageId: messageId)
         case .sendChatMessage(let text, let imageData):

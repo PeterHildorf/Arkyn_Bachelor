@@ -19,6 +19,7 @@ enum MessageKind {
 
 enum RetryContext {
     case extractImage(imageData: Data)
+    case extractVideo(videoURL: URL)
     case analyzeEntity(entity: ExtractedEntity, context: [ExtractedEntity])
     case sendChatMessage(text: String, imageData: Data?)
 }
@@ -29,6 +30,7 @@ struct ChatMessage: Identifiable {
     let isFromUser: Bool
     let timestamp: Date
     var imageData: Data?
+    var videoURL: URL?
 
     // Convenience: plain-text content
     var textContent: String {
@@ -42,16 +44,17 @@ struct ChatMessage: Identifiable {
         }
     }
 
-    init(id: UUID = UUID(), kind: MessageKind, isFromUser: Bool, timestamp: Date = Date(), imageData: Data? = nil) {
+    init(id: UUID = UUID(), kind: MessageKind, isFromUser: Bool, timestamp: Date = Date(), imageData: Data? = nil, videoURL: URL? = nil) {
         self.id = id
         self.kind = kind
         self.isFromUser = isFromUser
         self.timestamp = timestamp
         self.imageData = imageData
+        self.videoURL = videoURL
     }
 
-    init(text: String, isFromUser: Bool, imageData: Data? = nil) {
-        self.init(kind: .text(text), isFromUser: isFromUser, imageData: imageData)
+    init(text: String, isFromUser: Bool, imageData: Data? = nil, videoURL: URL? = nil) {
+        self.init(kind: .text(text), isFromUser: isFromUser, imageData: imageData, videoURL: videoURL)
     }
 }
 
@@ -90,12 +93,14 @@ struct AnalyzeRequest: Codable {
     let targetValue: String
     let machineModel: String
     let context: [ExtractedEntity]
+    let language: String
     
     enum CodingKeys: String, CodingKey {
         case targetLabel = "target_label"
         case targetValue = "target_value"
         case machineModel = "machine_model"
         case context
+        case language
     }
 }
 

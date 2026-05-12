@@ -15,6 +15,7 @@ type analyzeRequest struct {
 	TargetValue  string      `json:"target_value"`  // e.g. "SEW Eurodrive MDX61B"
 	MachineModel string      `json:"machine_model"` // Best‑guess model (may equal TargetValue)
 	Context      []ai.Entity `json:"context"`       // Other entities from the extract result
+	Language     string      `json:"language"`      // "da" or "en"
 }
 
 // NewAnalyzeHandler returns the handler for POST /api/v1/analyze.
@@ -42,6 +43,7 @@ func NewAnalyzeHandler(claude *ai.ClaudeClient) http.HandlerFunc {
 			TargetValue:  req.TargetValue,
 			MachineModel: req.MachineModel,
 			Context:      req.Context,
+			Language:     req.Language,
 		})
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse(err.Error()))

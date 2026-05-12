@@ -1,5 +1,5 @@
-import SwiftUI
 import AVKit
+import SwiftUI
 
 struct CameraView: View {
     @StateObject private var viewModel = CameraViewModel()
@@ -16,6 +16,26 @@ struct CameraView: View {
                 serverStatusBadge
 
                 previewSection
+
+                // UX Guidance for video
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundColor(.blue)
+                        .font(.title3)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("For store labels (video)")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Text("Panorer langsomt fra venstre mod højre for at fange al teksten.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding()
+                .background(Color.blue.opacity(0.1))
+                .cornerRadius(12)
 
                 Button(action: {
                     viewModel.openCamera()

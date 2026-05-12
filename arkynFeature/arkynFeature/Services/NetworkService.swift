@@ -55,8 +55,51 @@ class NetworkService {
         return try JSONDecoder().decode(ExtractionResult.self, from: data)
     }
 
+    func extract(videoURL: URL) async throws -> ExtractionResult {
+        guard let url = URL(string: "\(baseURL)/api/v1/extract") else {
+            throw URLError(.badURL)
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 120 // Videos might take longer to upload and process
+
+        let boundary = UUID().uuidString
+        request.setValue(
+            "multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        let videoData = try Data(contentsOf: videoURL)
+
+        var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append(
+            "Content-Disposition: form-data; name=\"video\"; filename=\"video.mp4\"\r\n".data(
+                using: .utf8)!)
+        body.append("Content-Type: video/mp4\r\n\r\n".data(using: .utf8)!)
+        body.append(videoData)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+
+        request.httpBody = body
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        guard httpResponse.statusCode == 200 else {
+            if let errorBody = try? JSONDecoder().decode([String: String].self, from: data),
+                let msg = errorBody["error"]
+            {
+                throw NetworkError.serverError(msg)
+            }
+            throw URLError(.badServerResponse)
+        }
+
+        return try JSONDecoder().decode(ExtractionResult.self, from: data)
+    }
+
     // MARK: - API v1: Analyze Target
-    func analyze(targetLabel: String, targetValue: String, context: [ExtractedEntity]) async throws
+    func analyze(targetLabel: String, targetValue: String, context: [ExtractedEntity], language: String) async throws
         -> MaintenanceGuidance
     {
         guard let url = URL(string: "\(baseURL)/api/v1/analyze") else {
@@ -78,7 +121,8 @@ class NetworkService {
             targetLabel: targetLabel,
             targetValue: targetValue,
             machineModel: machineModel,
-            context: context
+            context: context,
+            language: language
         )
         request.httpBody = try JSONEncoder().encode(requestBody)
 

@@ -5,7 +5,10 @@ struct ChatView: View {
     @StateObject private var viewModel = ChatViewModel()
     @State private var showImagePicker = false
     @State private var selectedImage: UIImage?
+    @State private var selectedVideoURL: URL?
     @FocusState private var isTextFieldFocused: Bool
+
+    @AppStorage("preferredLanguage") private var preferredLanguage: String = "da"
 
     let initialMedia: MediaType?
     let onDismiss: () -> Void
@@ -78,18 +81,31 @@ struct ChatView: View {
                     Button("Luk") { onDismiss() }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        viewModel.clearChat()
-                    } label: {
-                        Image(systemName: "trash")
+                    HStack {
+                        Menu {
+                            Button { preferredLanguage = "da" } label: {
+                                Label("Dansk", systemImage: preferredLanguage == "da" ? "checkmark" : "")
+                            }
+                            Button { preferredLanguage = "en" } label: {
+                                Label("English", systemImage: preferredLanguage == "en" ? "checkmark" : "")
+                            }
+                        } label: {
+                            Image(systemName: "globe")
+                        }
+                        
+                        Button {
+                            viewModel.clearChat()
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .disabled(viewModel.messages.isEmpty)
                     }
-                    .disabled(viewModel.messages.isEmpty)
                 }
             }
             .sheet(isPresented: $showImagePicker) {
                 ImagePicker(
                     image: $selectedImage,
-                    videoURL: .constant(nil),
+                    videoURL: $selectedVideoURL,
                     sourceType: .photoLibrary
                 )
             }
@@ -114,6 +130,26 @@ struct ChatView: View {
                     Spacer()
                     Button {
                         selectedImage = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.top, 8)
+            } else if selectedVideoURL != nil {
+                HStack {
+                    ZStack {
+                        Color.black.opacity(0.8)
+                        Image(systemName: "video.fill")
+                            .foregroundColor(.white)
+                    }
+                    .frame(width: 60, height: 60)
+                    .cornerRadius(8)
+                    
+                    Spacer()
+                    Button {
+                        selectedVideoURL = nil
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.secondary)
@@ -146,10 +182,22 @@ struct ChatView: View {
 
                 Button {
                     Task {
-                        let imageData = selectedImage?.jpegData(compressionQuality: 0.8)
-                        selectedImage = nil
                         isTextFieldFocused = false
-                        await viewModel.sendMessage(withImage: imageData)
+                        let text = viewModel.currentMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+                        
+                        // If there is only a video and no text, run extractVideo
+                        if let videoURL = selectedVideoURL, text.isEmpty {
+                            let urlToUpload = videoURL
+                            selectedVideoURL = nil
+                            await viewModel.extractVideo(urlToUpload)
+                        } else {
+                            // Video in a chat message (with text) is currently not supported by backend chat endpoint
+                            // So we just upload the image if present. We could ignore the video or handle it.
+                            let imageData = selectedImage?.jpegData(compressionQuality: 0.8)
+                            selectedImage = nil
+                            selectedVideoURL = nil
+                            await viewModel.sendMessage(withImage: imageData)
+                        }
                     }
                 } label: {
                     Image(systemName: "arrow.up.circle.fill")
@@ -167,7 +215,7 @@ struct ChatView: View {
 
     private var canSend: Bool {
         !viewModel.currentMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || selectedImage != nil
+            || selectedImage != nil || selectedVideoURL != nil
     }
 
     // MARK: - Send Initial Media
@@ -179,11 +227,8 @@ struct ChatView: View {
             }
 
         case .video(let url):
-            if let thumbnail = await extractThumbnail(from: url),
-                let imageData = thumbnail.jpegData(compressionQuality: 0.8)
-            {
-                await viewModel.extractImage(imageData)
-            }
+            // Upload the full video directly to the server for processing
+            await viewModel.extractVideo(url)
         }
     }
 

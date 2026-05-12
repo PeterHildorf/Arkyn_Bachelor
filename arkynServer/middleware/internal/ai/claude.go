@@ -201,6 +201,7 @@ type AnalyzeTargetRequest struct {
 	TargetValue  string   `json:"target_value"`  // e.g. "SEW Eurodrive MDX61B"
 	MachineModel string   `json:"machine_model"` // Best-known model from extract (may equal TargetValue)
 	Context      []Entity `json:"context"`       // All other entities for background context
+	Language     string   `json:"language"`      // "da" or "en"
 }
 
 // AnalyzeTarget calls Claude to produce focused maintenance guidance.
@@ -211,15 +212,22 @@ func (c *ClaudeClient) AnalyzeTarget(ctx context.Context, req AnalyzeTargetReque
 		contextLines += fmt.Sprintf("  %s: %s\n", e.Label, e.Value)
 	}
 
+	languageInstruction := "IMPORTANT: Provide all textual guidance, safety notes, and equipment context in English."
+	if req.Language == "da" {
+		languageInstruction = "IMPORTANT: Write all textual output (general_guidance, safety_notes, equipment_context) entirely in Danish. Ensure technical and industrial terms are translated accurately, or kept in English only if that is the Danish industry standard."
+	}
+
 	userMsg := fmt.Sprintf(
 		"The technician wants maintenance guidance for:\n"+
 			"  Field: %s\n"+
 			"  Value: %s\n\n"+
 			"Additional label context (do not focus on these, use only as background):\n%s\n"+
-			"Provide targeted maintenance guidance for this specific field/value.",
+			"Provide targeted maintenance guidance for this specific field/value.\n\n"+
+			"%s",
 		req.TargetLabel,
 		req.TargetValue,
 		contextLines,
+		languageInstruction,
 	)
 
 	payload := claudeRequest{
