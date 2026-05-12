@@ -13,6 +13,14 @@ enum MessageKind {
     case extractedEntities(entities: [ExtractedEntity], context: [ExtractedEntity])
     case guidance(MaintenanceGuidance)
     case flagged(reason: String)
+    case loading(hint: String)
+    case error(reason: String, context: RetryContext)
+}
+
+enum RetryContext {
+    case extractImage(imageData: Data)
+    case analyzeEntity(entity: ExtractedEntity, context: [ExtractedEntity])
+    case sendChatMessage(text: String, imageData: Data?)
 }
 
 struct ChatMessage: Identifiable {
@@ -29,6 +37,8 @@ struct ChatMessage: Identifiable {
         case .extractedEntities(let e, _): return "Extracted \(e.count) entities"
         case .guidance(let g):   return g.equipmentContext
         case .flagged(let r):    return r
+        case .loading(let hint): return hint
+        case .error(let reason, _): return reason
         }
     }
 
@@ -99,6 +109,7 @@ struct MaintenanceGuidance: Codable {
     let equipmentContext: String
     let generalGuidance: [String]
     let safetyNotes: [String]
+    let sourceReferences: [String]?
     let uncertaintyLevel: String
 
     enum CodingKeys: String, CodingKey {
@@ -107,6 +118,7 @@ struct MaintenanceGuidance: Codable {
         case equipmentContext = "equipment_context"
         case generalGuidance = "general_guidance"
         case safetyNotes = "safety_notes"
+        case sourceReferences = "source_references"
         case uncertaintyLevel = "uncertainty_level"
     }
 }

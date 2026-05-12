@@ -52,6 +52,7 @@ type MaintenanceGuidance struct {
 	EquipmentContext        string   `json:"equipment_context"`         // Inferred from machine_model context
 	GeneralGuidance         []string `json:"general_guidance"`
 	SafetyNotes             []string `json:"safety_notes"`
+	SourceReferences        []string `json:"source_references"`
 	UncertaintyLevel        string   `json:"uncertainty_level"` // "low" | "medium" | "high"
 }
 
@@ -180,6 +181,7 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no extra
   "equipment_context": "<brief description of what this equipment appears to be>",
   "general_guidance": ["<step 1>", "<step 2>", "..."],
   "safety_notes": ["<safety note 1>", "..."],
+  "source_references": ["<reference 1>", "<reference 2>", "..."],
   "uncertainty_level": "<low|medium|high>"
 }
 
@@ -190,7 +192,8 @@ Important constraints:
 - Always prioritize safety over efficiency
 - If information is insufficient, set uncertainty_level to "high" and explain in guidance
 - general_guidance must have at least 3 steps
-- safety_notes must have at least 2 items`
+- safety_notes must have at least 2 items
+- source_references must list generic manuals, standards, or documentation types that validate the guidance`
 
 // AnalyzeTargetRequest groups the data sent from iOS when the user taps "analyze".
 type AnalyzeTargetRequest struct {

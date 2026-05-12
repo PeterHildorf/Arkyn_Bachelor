@@ -13,50 +13,86 @@ final class ChatViewModel: ObservableObject {
     @Published var currentMessage: String = ""
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
+    @Published var scrollTrigger: Int = 0
 
     // MARK: - Phase 1: Extract Image
-    func extractImage(_ imageData: Data) async {
-        // Show the captured image as a user message
-        let userMessage = ChatMessage(
-            kind: .text(""),
-            isFromUser: true,
-            imageData: imageData
-        )
-        messages.append(userMessage)
+    func extractImage(_ imageData: Data, replaceMessageId: UUID? = nil) async {
+        let placeholderId: UUID
+        
+        if let existingId = replaceMessageId {
+            placeholderId = existingId
+            let placeholder = ChatMessage(id: placeholderId, kind: .loading(hint: "Analyserer billede…"), isFromUser: false)
+            if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
+                messages[idx] = placeholder
+            }
+        } else {
+            let userMessage = ChatMessage(kind: .text(""), isFromUser: true, imageData: imageData)
+            placeholderId = UUID()
+            let placeholder = ChatMessage(
+                id: placeholderId,
+                kind: .loading(hint: "Analyserer billede…"),
+                isFromUser: false
+            )
+            messages.append(contentsOf: [userMessage, placeholder])
+        }
         isLoading = true
         errorMessage = nil
 
         do {
             let response = try await NetworkService.shared.extract(imageData: imageData)
 
-            let assistantMessage: ChatMessage
+            let result: ChatMessage
             if response.flaggedForReview {
-                assistantMessage = ChatMessage(
+                result = ChatMessage(
+                    id: placeholderId,
                     kind: .flagged(reason: "Billedkvaliteten eller OCR-confidence er for lav. Tag et nyt, tydeligt billede."),
                     isFromUser: false
                 )
             } else {
-                assistantMessage = ChatMessage(
+                result = ChatMessage(
+                    id: placeholderId,
                     kind: .extractedEntities(entities: response.entities, context: response.entities),
                     isFromUser: false
                 )
             }
-            messages.append(assistantMessage)
-
+            // Replace placeholder in-place — no new row, no flicker
+            if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
+                messages[idx] = result
+                scrollTrigger += 1
+            }
         } catch {
-            errorMessage = "Udtrækning fejlede: \(error.localizedDescription)"
+            let errorMsg = ChatMessage(id: placeholderId, kind: .error(reason: "Udtrækning fejlede: \(error.localizedDescription)", context: .extractImage(imageData: imageData)), isFromUser: false)
+            if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
+                messages[idx] = errorMsg
+                scrollTrigger += 1
+            }
         }
 
         isLoading = false
     }
 
     // MARK: - Phase 2: Analyze Entity
-    func analyzeEntity(_ entity: ExtractedEntity, context: [ExtractedEntity]) async {
+    func analyzeEntity(_ entity: ExtractedEntity, context: [ExtractedEntity], replaceMessageId: UUID? = nil) async {
+        let placeholderId: UUID
+        
+        if let existingId = replaceMessageId {
+            placeholderId = existingId
+            let placeholder = ChatMessage(id: placeholderId, kind: .loading(hint: "Henter vedligeholdelsesvejledning…"), isFromUser: false)
+            if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
+                messages[idx] = placeholder
+            }
+        } else {
+            let userMessage = ChatMessage(text: "Analyser \(entity.label): \(entity.value)", isFromUser: true)
+            placeholderId = UUID()
+            let placeholder = ChatMessage(
+                id: placeholderId,
+                kind: .loading(hint: "Henter vedligeholdelsesvejledning…"),
+                isFromUser: false
+            )
+            messages.append(contentsOf: [userMessage, placeholder])
+        }
         isLoading = true
         errorMessage = nil
-        
-        // Optionally show what the user requested
-        messages.append(ChatMessage(text: "Analyser \(entity.label): \(entity.value)", isFromUser: true))
 
         do {
             let response = try await NetworkService.shared.analyze(
@@ -64,48 +100,71 @@ final class ChatViewModel: ObservableObject {
                 targetValue: entity.value,
                 context: context
             )
-            
-            let assistantMessage = ChatMessage(
-                kind: .guidance(response),
-                isFromUser: false
-            )
-            messages.append(assistantMessage)
+            let result = ChatMessage(id: placeholderId, kind: .guidance(response), isFromUser: false)
+            if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
+                messages[idx] = result
+                scrollTrigger += 1
+            }
         } catch {
-            errorMessage = "Analyse fejlede: \(error.localizedDescription)"
+            let errorMsg = ChatMessage(id: placeholderId, kind: .error(reason: "Analyse fejlede: \(error.localizedDescription)", context: .analyzeEntity(entity: entity, context: context)), isFromUser: false)
+            if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
+                messages[idx] = errorMsg
+                scrollTrigger += 1
+            }
         }
-        
+
         isLoading = false
     }
 
-    // MARK: - Send Plain Text Message (legacy / chat endpoint)
-    func sendMessage(withImage imageData: Data? = nil) async {
-        guard !currentMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || imageData != nil else {
-            return
+    // MARK: - Send Plain Text Message
+    func sendMessage(withImage imageData: Data? = nil, replaceMessageId: UUID? = nil) async {
+        let text = currentMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Only guard against empty message if we are NOT retrying
+        if replaceMessageId == nil {
+            guard !text.isEmpty || imageData != nil else { return }
         }
 
-        // If image is provided and no text, route through /extract instead
-        if let imageData = imageData, currentMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        // Image-only → route through extract
+        if let imageData, text.isEmpty && replaceMessageId == nil {
             await extractImage(imageData)
             return
         }
 
-        let userMessage = ChatMessage(text: currentMessage, isFromUser: true, imageData: imageData)
-        messages.append(userMessage)
-
-        let messageToSend = currentMessage
-        currentMessage = ""
+        let placeholderId: UUID
+        if let existingId = replaceMessageId {
+            placeholderId = existingId
+            let placeholder = ChatMessage(id: placeholderId, kind: .loading(hint: "Sender besked…"), isFromUser: false)
+            if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
+                messages[idx] = placeholder
+            }
+        } else {
+            let userMessage = ChatMessage(text: text, isFromUser: true, imageData: imageData)
+            placeholderId = UUID()
+            let placeholder = ChatMessage(
+                id: placeholderId,
+                kind: .loading(hint: "Sender besked…"),
+                isFromUser: false
+            )
+            messages.append(contentsOf: [userMessage, placeholder])
+            currentMessage = ""
+        }
         isLoading = true
         errorMessage = nil
 
         do {
-            let response = try await NetworkService.shared.sendChatMessage(
-                message: messageToSend,
-                imageData: imageData
-            )
-            let assistantMessage = ChatMessage(text: response.reply, isFromUser: false)
-            messages.append(assistantMessage)
+            let response = try await NetworkService.shared.sendChatMessage(message: text, imageData: imageData)
+            let result = ChatMessage(id: placeholderId, kind: .text(response.reply), isFromUser: false)
+            if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
+                messages[idx] = result
+                scrollTrigger += 1
+            }
         } catch {
-            errorMessage = "Kunne ikke sende besked: \(error.localizedDescription)"
+            let errorMsg = ChatMessage(id: placeholderId, kind: .error(reason: "Kunne ikke sende besked: \(error.localizedDescription)", context: .sendChatMessage(text: text, imageData: imageData)), isFromUser: false)
+            if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
+                messages[idx] = errorMsg
+                scrollTrigger += 1
+            }
         }
 
         isLoading = false
@@ -121,5 +180,21 @@ final class ChatViewModel: ObservableObject {
     // MARK: - Delete Message
     func deleteMessage(_ message: ChatMessage) {
         messages.removeAll { $0.id == message.id }
+    }
+    
+    // MARK: - Retry
+    func retry(messageId: UUID, context: RetryContext) async {
+        switch context {
+        case .extractImage(let imageData):
+            await extractImage(imageData, replaceMessageId: messageId)
+        case .analyzeEntity(let entity, let context):
+            await analyzeEntity(entity, context: context, replaceMessageId: messageId)
+        case .sendChatMessage(let text, let imageData):
+            // Temporarily set currentMessage so sendMessage can read it
+            let previousMessage = currentMessage
+            currentMessage = text
+            await sendMessage(withImage: imageData, replaceMessageId: messageId)
+            currentMessage = previousMessage
+        }
     }
 }
