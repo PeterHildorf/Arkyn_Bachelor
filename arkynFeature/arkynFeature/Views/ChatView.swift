@@ -2,56 +2,86 @@ import AVKit
 import SwiftUI
 
 struct ChatView: View {
+    enum PickerSource: Identifiable {
+        case camera
+        case photoLibrary
+        
+        var id: Int {
+            switch self {
+            case .camera: return 1
+            case .photoLibrary: return 2
+            }
+        }
+        
+        var uiKitType: UIImagePickerController.SourceType {
+            switch self {
+            case .camera: return .camera
+            case .photoLibrary: return .photoLibrary
+            }
+        }
+    }
+
     @StateObject private var viewModel = ChatViewModel()
-    @State private var showImagePicker = false
+    @State private var activePickerSource: PickerSource? = nil
     @State private var selectedImage: UIImage?
     @State private var selectedVideoURL: URL?
-    @FocusState private var isTextFieldFocused: Bool
 
     @AppStorage("preferredLanguage") private var preferredLanguage: String = "da"
-
-    let initialMedia: MediaType?
-    let onDismiss: () -> Void
-
-    init(initialMedia: MediaType? = nil, onDismiss: @escaping () -> Void = {}) {
-        self.initialMedia = initialMedia
-        self.onDismiss = onDismiss
-    }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 // Messages List
                 ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: 12) {
-                            ForEach(viewModel.messages) { message in
-                                MessageBubble(
-                                    message: message,
-                                    onAnalyze: { entity, context in
-                                        Task {
-                                            await viewModel.analyzeEntity(entity, context: context)
+                    if viewModel.messages.isEmpty {
+                        VStack(spacing: 20) {
+                            Spacer()
+                            Image(systemName: "photo.viewfinder")
+                                .font(.system(size: 64))
+                                .foregroundColor(.blue)
+                            Text("Arkyn Analyse")
+                                .font(.title3).bold()
+                            Text("Start en ny maskinanalyse ved at vælge et billede eller en video af maskinens typeskilt.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 32)
+                            Spacer()
+                        }
+                    } else {
+                        ScrollView {
+                            LazyVStack(spacing: 12) {
+                                ForEach(viewModel.messages) { message in
+                                    MessageBubble(
+                                        message: message,
+                                        onAnalyze: { entity, context in
+                                            Task {
+                                                await viewModel.analyzeEntity(entity, context: context)
+                                            }
+                                        },
+                                        onRetry: { id, context in
+                                            Task {
+                                                await viewModel.retry(messageId: id, context: context)
+                                            }
                                         }
-                                    },
-                                    onRetry: { id, context in
-                                        Task {
-                                            await viewModel.retry(messageId: id, context: context)
-                                        }
-                                    }
-                                )
-                                .id(message.id)
+                                    )
+                                    .id(message.id)
+                                }
+                            }
+                            .padding()
+                        }
+                        .onChange(of: viewModel.messages.count) {
+                            scrollToBottom(proxy: proxy)
+                        }
+                        .onChange(of: viewModel.scrollTrigger) {
+                            if let targetId = viewModel.scrollTargetId, let anchor = viewModel.scrollAnchor {
+                                withAnimation(.easeOut(duration: 0.3)) {
+                                    proxy.scrollTo(targetId, anchor: anchor)
+                                }
+                            } else {
+                                scrollToBottom(proxy: proxy)
                             }
                         }
-                        .padding()
-                    }
-                    .onChange(of: viewModel.messages.count) {
-                        scrollToBottom(proxy: proxy)
-                    }
-                    .onChange(of: viewModel.scrollTrigger) {
-                        scrollToBottom(proxy: proxy)
-                    }
-                    .onChange(of: isTextFieldFocused) {
-                        if isTextFieldFocused { scrollToBottom(proxy: proxy) }
                     }
                 }
 
@@ -78,7 +108,16 @@ struct ChatView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Luk") { onDismiss() }
+                    Group {
+                        if let connected = viewModel.isServerConnected {
+                            Image(systemName: "network")
+                                .foregroundColor(connected ? .green : .red)
+                                .font(.system(size: 18, weight: .semibold))
+                        } else {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        }
+                    }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack {
@@ -102,16 +141,33 @@ struct ChatView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showImagePicker) {
+            .fullScreenCover(item: $activePickerSource) { source in
                 ImagePicker(
                     image: $selectedImage,
                     videoURL: $selectedVideoURL,
-                    sourceType: .photoLibrary
+                    sourceType: source.uiKitType
                 )
+                .ignoresSafeArea()
             }
             .task {
-                if let media = initialMedia, viewModel.messages.isEmpty {
-                    await sendInitialMedia(media)
+                await viewModel.checkServer()
+            }
+            .onChange(of: selectedImage) {
+                if let image = selectedImage {
+                    selectedImage = nil
+                    if let imageData = image.jpegData(compressionQuality: 0.8) {
+                        Task {
+                            await viewModel.extractImage(imageData)
+                        }
+                    }
+                }
+            }
+            .onChange(of: selectedVideoURL) {
+                if let url = selectedVideoURL {
+                    selectedVideoURL = nil
+                    Task {
+                        await viewModel.extractVideo(url)
+                    }
                 }
             }
         }
@@ -119,124 +175,51 @@ struct ChatView: View {
 
     // MARK: - Input Area
     private var inputArea: some View {
-        VStack(spacing: 8) {
-            if let image = selectedImage {
-                HStack {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 60, height: 60)
-                        .cornerRadius(8)
-                    Spacer()
-                    Button {
-                        selectedImage = nil
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
-                    }
+        HStack(spacing: 12) {
+            // Kamera-knap
+            Button {
+                activePickerSource = .camera
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "camera.fill")
+                    Text("Kamera")
                 }
-                .padding(.horizontal)
-                .padding(.top, 8)
-            } else if selectedVideoURL != nil {
-                HStack {
-                    ZStack {
-                        Color.black.opacity(0.8)
-                        Image(systemName: "video.fill")
-                            .foregroundColor(.white)
-                    }
-                    .frame(width: 60, height: 60)
-                    .cornerRadius(8)
-                    
-                    Spacer()
-                    Button {
-                        selectedVideoURL = nil
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.top, 8)
+                .font(.subheadline).bold()
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(Color.blue)
+                .foregroundColor(.white)
+                .cornerRadius(12)
             }
-
-            HStack(alignment: .bottom, spacing: 12) {
-                Button {
-                    showImagePicker = true
-                } label: {
-                    Image(systemName: "photo")
-                        .font(.title3)
-                        .foregroundColor(.blue)
-                        .frame(width: 36, height: 36)
+            .disabled(viewModel.isLoading)
+            
+            // Galleri-knap
+            Button {
+                activePickerSource = .photoLibrary
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                    Text("Galleri")
                 }
-                .padding(.vertical, 2)
-                .disabled(viewModel.isLoading)
-
-                TextField("Skriv en besked...", text: $viewModel.currentMessage, axis: .vertical)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(20)
-                    .lineLimit(1...5)
-                    .disabled(viewModel.isLoading)
-                    .focused($isTextFieldFocused)
-
-                Button {
-                    Task {
-                        isTextFieldFocused = false
-                        let text = viewModel.currentMessage.trimmingCharacters(in: .whitespacesAndNewlines)
-                        
-                        // If there is only a video and no text, run extractVideo
-                        if let videoURL = selectedVideoURL, text.isEmpty {
-                            let urlToUpload = videoURL
-                            selectedVideoURL = nil
-                            await viewModel.extractVideo(urlToUpload)
-                        } else {
-                            // Video in a chat message (with text) is currently not supported by backend chat endpoint
-                            // So we just upload the image if present. We could ignore the video or handle it.
-                            let imageData = selectedImage?.jpegData(compressionQuality: 0.8)
-                            selectedImage = nil
-                            selectedVideoURL = nil
-                            await viewModel.sendMessage(withImage: imageData)
-                        }
-                    }
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.title2)
-                        .foregroundColor(canSend ? .blue : .gray)
-                }
-                .disabled(!canSend || viewModel.isLoading)
-                .padding(.vertical, 6)
+                .font(.subheadline).bold()
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(Color(.systemGray5))
+                .foregroundColor(.primary)
+                .cornerRadius(12)
             }
-            .padding(.horizontal)
-            .padding(.vertical, 12)
+            .disabled(viewModel.isLoading)
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .background(Color(.systemBackground))
-    }
-
-    private var canSend: Bool {
-        !viewModel.currentMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || selectedImage != nil || selectedVideoURL != nil
-    }
-
-    // MARK: - Send Initial Media
-    private func sendInitialMedia(_ media: MediaType) async {
-        switch media {
-        case .image(let image):
-            if let imageData = image.jpegData(compressionQuality: 0.8) {
-                await viewModel.extractImage(imageData)
-            }
-
-        case .video(let url):
-            // Upload the full video directly to the server for processing
-            await viewModel.extractVideo(url)
-        }
     }
 
     // MARK: - Scroll Helper
     private func scrollToBottom(proxy: ScrollViewProxy) {
         guard let last = viewModel.messages.last else { return }
         withAnimation(.easeOut(duration: 0.3)) {
-            proxy.scrollTo(last.id)
+            proxy.scrollTo(last.id, anchor: .bottom)
         }
     }
 
@@ -265,7 +248,5 @@ struct ChatView: View {
 }
 
 #Preview {
-    ChatView {
-        print("Dismissed")
-    }
+    ChatView()
 }

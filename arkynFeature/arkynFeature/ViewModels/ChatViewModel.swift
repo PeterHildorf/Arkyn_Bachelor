@@ -14,6 +14,9 @@ final class ChatViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var scrollTrigger: Int = 0
+    @Published var scrollTargetId: UUID?
+    @Published var scrollAnchor: UnitPoint?
+    @Published var isServerConnected: Bool? = nil
 
     @AppStorage("preferredLanguage") var preferredLanguage: String = "da"
 
@@ -60,13 +63,13 @@ final class ChatViewModel: ObservableObject {
             // Replace placeholder in-place — no new row, no flicker
             if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
                 messages[idx] = result
-                scrollTrigger += 1
+                triggerScroll(forServerMessageId: placeholderId)
             }
         } catch {
             let errorMsg = ChatMessage(id: placeholderId, kind: .error(reason: "Udtrækning fejlede: \(error.localizedDescription)", context: .extractImage(imageData: imageData)), isFromUser: false)
             if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
                 messages[idx] = errorMsg
-                scrollTrigger += 1
+                triggerScroll(forServerMessageId: placeholderId)
             }
         }
 
@@ -116,13 +119,13 @@ final class ChatViewModel: ObservableObject {
             // Replace placeholder in-place
             if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
                 messages[idx] = result
-                scrollTrigger += 1
+                triggerScroll(forServerMessageId: placeholderId)
             }
         } catch {
             let errorMsg = ChatMessage(id: placeholderId, kind: .error(reason: "Udtrækning fejlede: \(error.localizedDescription)", context: .extractVideo(videoURL: videoURL)), isFromUser: false)
             if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
                 messages[idx] = errorMsg
-                scrollTrigger += 1
+                triggerScroll(forServerMessageId: placeholderId)
             }
         }
 
@@ -162,13 +165,13 @@ final class ChatViewModel: ObservableObject {
             let result = ChatMessage(id: placeholderId, kind: .guidance(response), isFromUser: false)
             if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
                 messages[idx] = result
-                scrollTrigger += 1
+                triggerScroll(forServerMessageId: placeholderId)
             }
         } catch {
             let errorMsg = ChatMessage(id: placeholderId, kind: .error(reason: "Analyse fejlede: \(error.localizedDescription)", context: .analyzeEntity(entity: entity, context: context)), isFromUser: false)
             if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
                 messages[idx] = errorMsg
-                scrollTrigger += 1
+                triggerScroll(forServerMessageId: placeholderId)
             }
         }
 
@@ -216,13 +219,13 @@ final class ChatViewModel: ObservableObject {
             let result = ChatMessage(id: placeholderId, kind: .text(response.reply), isFromUser: false)
             if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
                 messages[idx] = result
-                scrollTrigger += 1
+                triggerScroll(forServerMessageId: placeholderId)
             }
         } catch {
             let errorMsg = ChatMessage(id: placeholderId, kind: .error(reason: "Kunne ikke sende besked: \(error.localizedDescription)", context: .sendChatMessage(text: text, imageData: imageData)), isFromUser: false)
             if let idx = messages.firstIndex(where: { $0.id == placeholderId }) {
                 messages[idx] = errorMsg
-                scrollTrigger += 1
+                triggerScroll(forServerMessageId: placeholderId)
             }
         }
 
@@ -258,4 +261,35 @@ final class ChatViewModel: ObservableObject {
             currentMessage = previousMessage
         }
     }
+
+    // MARK: - Health Check
+    func checkServer() async {
+        do {
+            isServerConnected = try await NetworkService.shared.checkHealth()
+        } catch {
+            isServerConnected = false
+        }
+    }
+    
+    // MARK: - Scroll Helper
+    private func triggerScroll(forServerMessageId serverId: UUID) {
+        guard let idx = messages.firstIndex(where: { $0.id == serverId }) else { return }
+        
+        var targetId = serverId
+        var anchor: UnitPoint = .bottom
+        
+        // Find the closest user message before this server message
+        for i in (0..<idx).reversed() {
+            if messages[i].isFromUser {
+                targetId = messages[i].id
+                anchor = .top
+                break
+            }
+        }
+        
+        self.scrollTargetId = targetId
+        self.scrollAnchor = anchor
+        self.scrollTrigger += 1
+    }
 }
+

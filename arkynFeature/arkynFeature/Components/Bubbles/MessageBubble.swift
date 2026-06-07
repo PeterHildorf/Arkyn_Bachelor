@@ -10,7 +10,7 @@ struct MessageBubble: View {
         case .text(let text):
             PlainTextBubble(
                 text: text, isFromUser: message.isFromUser,
-                imageData: message.imageData, timestamp: message.timestamp)
+                imageData: message.imageData, videoURL: message.videoURL, timestamp: message.timestamp)
 
         case .extractedEntities(let entities, let context):
             EntitiesBubble(

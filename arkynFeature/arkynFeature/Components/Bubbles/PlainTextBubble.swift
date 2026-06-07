@@ -1,9 +1,11 @@
 import SwiftUI
+import AVKit
 
 struct PlainTextBubble: View {
     let text: String
     let isFromUser: Bool
     let imageData: Data?
+    let videoURL: URL?
     let timestamp: Date
 
     var body: some View {
@@ -11,7 +13,12 @@ struct PlainTextBubble: View {
             if isFromUser { Spacer() }
 
             VStack(alignment: isFromUser ? .trailing : .leading, spacing: 4) {
-                if let data = imageData, let uiImage = UIImage(data: data) {
+                if let videoURL = videoURL {
+                    VideoPlayer(player: AVPlayer(url: videoURL))
+                        .frame(width: 200, height: 200)
+                        .cornerRadius(12)
+                        .clipped()
+                } else if let data = imageData, let uiImage = UIImage(data: data) {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()

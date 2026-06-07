@@ -33,21 +33,20 @@ struct EntitiesBubble: View {
                             .foregroundColor(.primary)
 
                         if !entity.actions.isEmpty {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    ForEach(entity.actions, id: \.self) { action in
-                                        Button {
-                                            handleAction(action, for: entity)
-                                        } label: {
-                                            Label(titleFor(action), systemImage: iconFor(action))
-                                                .font(.caption2).bold()
-                                                .padding(.horizontal, 10)
-                                                .padding(.vertical, 6)
-                                                .background(colorFor(action).opacity(0.15))
-                                                .foregroundColor(colorFor(action))
-                                                .cornerRadius(8)
-                                        }
+                            HStack(spacing: 8) {
+                                ForEach(entity.actions, id: \.self) { action in
+                                    Button {
+                                        handleAction(action, for: entity)
+                                    } label: {
+                                        Label(titleFor(action), systemImage: iconFor(action))
+                                            .font(.caption2).bold()
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 6)
+                                            .background(colorFor(action).opacity(0.15))
+                                            .foregroundColor(colorFor(action))
+                                            .cornerRadius(8)
                                     }
+                                    .buttonStyle(.plain)
                                 }
                             }
                         }

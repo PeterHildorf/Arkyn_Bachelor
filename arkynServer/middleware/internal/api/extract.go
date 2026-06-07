@@ -105,6 +105,17 @@ func NewExtractHandler(visionClient *ocr.VisionClient, claude *ai.ClaudeClient) 
 			return
 		}
 
+		// If no industrial entities were extracted, flag it for review (e.g. keyboard text)
+		if len(entities) == 0 {
+			writeJSON(w, http.StatusOK, ai.ExtractionResult{
+				Entities:         entities,
+				RawText:          rawText,
+				Confidence:       confidence,
+				FlaggedForReview: true,
+			})
+			return
+		}
+
 		writeJSON(w, http.StatusOK, ai.ExtractionResult{
 			Entities:         entities,
 			RawText:          rawText,
