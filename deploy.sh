@@ -13,15 +13,15 @@ SERVER="user@130.225.170.229"
 REMOTE_MIDDLEWARE="~/arkyn-middleware/arkynServer/middleware"
 LOCAL_MIDDLEWARE="./arkynServer/middleware"
 
-echo "🚀 Arkyn Deploy"
+echo "Arkyn Deploy"
 echo "───────────────────────────"
 
 # 1. Kør lokale tests (Stopper scriptet hvis de fejler pga. set -e)
-echo "🧪 Kører lokale tests..."
+echo "Kører lokale tests..."
 cd "$LOCAL_MIDDLEWARE"
 go test ./...
 cd - > /dev/null
-echo "  → ✅ Alle tests bestået!"
+echo "  → Alle tests bestået!"
 
 # 2. Commit lokale ændringer hvis der er nogen
 if [[ -n $(git status --porcelain) ]]; then
@@ -32,7 +32,7 @@ if [[ -n $(git status --porcelain) ]]; then
 fi
 
 # 2. Push til GitHub
-echo "⬆️  Pusher til GitHub..."
+echo "Pusher til GitHub..."
 git push origin main
 
 # 3. Cross-kompilér til Linux (amd64) lokalt
@@ -43,15 +43,15 @@ cd - > /dev/null
 echo "  → Binær bygget: $(du -sh $LOCAL_MIDDLEWARE/arkyn-server | cut -f1)"
 
 # 4. Stop servicen FØR vi kopierer
-echo "⏹️  Stopper arkyn service..."
+echo "Stopper arkyn service..."
 ssh "$SERVER" "sudo systemctl stop arkyn"
 
 # 5. Kopiér binær til serveren
-echo "📤 Kopierer binær til serveren..."
+echo "Kopierer binær til serveren..."
 scp "$LOCAL_MIDDLEWARE/arkyn-server" "$SERVER:/home/user/arkyn-middleware/arkynServer/middleware/arkyn-server"
 
 # 6. SSH ind og genstart servicen
-echo "🔄 Genstarter service på DTU-server..."
+echo "Genstarter service på DTU-server..."
 ssh "$SERVER" << 'ENDSSH'
   set -e
   echo "  → Sætter executable-bit..."
@@ -64,4 +64,4 @@ ssh "$SERVER" << 'ENDSSH'
 ENDSSH
 
 echo ""
-echo "✅ Deploy fuldført! Server kører på http://130.225.170.229:8080"
+echo "Deploy fuldført! Server kører på http://130.225.170.229:8080"

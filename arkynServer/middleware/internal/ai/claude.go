@@ -14,25 +14,23 @@ const anthropicAPIURL = "https://api.anthropic.com/v1/messages"
 const anthropicVersion = "2023-06-01"
 const claudeModel = "claude-haiku-4-5"
 
-// ---------------------------------------------------------------------------
 // Shared data models
-// ---------------------------------------------------------------------------
 
 // AllowedAction is one of the UI action tokens the server may assign.
 // The iOS app reads these to decide which buttons to render for each entity.
 type AllowedAction string
 
 const (
-	ActionCopy    AllowedAction = "copy"   // Copy value to clipboard
-	ActionMaps    AllowedAction = "maps"   // Open in Apple/Google Maps (addresses only)
-	ActionSearch  AllowedAction = "search" // Generic web search
-	ActionAnalyze AllowedAction = "analyze" // Trigger /analyze endpoint
+	ActionCopy    AllowedAction = "copy"
+	ActionMaps    AllowedAction = "maps"
+	ActionSearch  AllowedAction = "search"
+	ActionAnalyze AllowedAction = "analyze"
 )
 
 // Entity is one identified piece of information from a machine label.
 type Entity struct {
-	Label   string          `json:"label"`   // e.g. "Manufacturer", "Model", "Serial Number"
-	Value   string          `json:"value"`   // Extracted value for this field
+	Label   string          `json:"label"` // e.g. "Manufacturer", "Model", "Serial Number"
+	Value   string          `json:"value"`
 	Actions []AllowedAction `json:"actions"` // UI buttons available for this entity
 }
 
@@ -47,18 +45,16 @@ type ExtractionResult struct {
 // MaintenanceGuidance is the structured response returned by /api/v1/analyze.
 // All fields are mandatory – Claude is constrained to always populate them.
 type MaintenanceGuidance struct {
-	TargetLabel             string   `json:"target_label"`
-	TargetValue             string   `json:"target_value"`
-	EquipmentContext        string   `json:"equipment_context"`         // Inferred from machine_model context
-	GeneralGuidance         []string `json:"general_guidance"`
-	SafetyNotes             []string `json:"safety_notes"`
-	SourceReferences        []string `json:"source_references"`
-	UncertaintyLevel        string   `json:"uncertainty_level"` // "low" | "medium" | "high"
+	TargetLabel      string   `json:"target_label"`
+	TargetValue      string   `json:"target_value"`
+	EquipmentContext string   `json:"equipment_context"`
+	GeneralGuidance  []string `json:"general_guidance"`
+	SafetyNotes      []string `json:"safety_notes"`
+	SourceReferences []string `json:"source_references"`
+	UncertaintyLevel string   `json:"uncertainty_level"` // "low" | "medium" | "high"
 }
 
-// ---------------------------------------------------------------------------
 // Claude client
-// ---------------------------------------------------------------------------
 
 // ClaudeClient wraps an HTTP client with the Anthropic API key.
 type ClaudeClient struct {
@@ -74,9 +70,7 @@ func NewClaudeClient(apiKey string) *ClaudeClient {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // Internal Anthropic API types
-// ---------------------------------------------------------------------------
 
 type claudeMessage struct {
 	Role    string `json:"role"`
@@ -102,9 +96,7 @@ type claudeResponse struct {
 	} `json:"error,omitempty"`
 }
 
-// ---------------------------------------------------------------------------
 // FormatEntities – used by POST /api/v1/extract
-// ---------------------------------------------------------------------------
 
 const extractSystemPrompt = `You are a machine-label parser for an industrial maintenance app.
 A technician has photographed a nameplate or label on industrial equipment.
@@ -166,9 +158,7 @@ func (c *ClaudeClient) FormatEntities(ctx context.Context, rawText string, confi
 	return result.Entities, nil
 }
 
-// ---------------------------------------------------------------------------
 // AnalyzeTarget – used by POST /api/v1/analyze
-// ---------------------------------------------------------------------------
 
 const analyzeSystemPrompt = `You are a general-purpose industrial maintenance assistant.
 A field technician has identified a specific field on a machine label and wants
@@ -251,9 +241,7 @@ func (c *ClaudeClient) AnalyzeTarget(ctx context.Context, req AnalyzeTargetReque
 	return &guidance, nil
 }
 
-// ---------------------------------------------------------------------------
 // Internal: shared HTTP call to Anthropic
-// ---------------------------------------------------------------------------
 
 func (c *ClaudeClient) callClaude(ctx context.Context, payload claudeRequest) (string, error) {
 	body, err := json.Marshal(payload)
@@ -307,7 +295,7 @@ func (c *ClaudeClient) callClaude(ctx context.Context, payload claudeRequest) (s
 func cleanJSONResponse(text string) string {
 	startIdx := strings.Index(text, "{")
 	endIdx := strings.LastIndex(text, "}")
-	
+
 	if startIdx != -1 && endIdx != -1 && startIdx < endIdx {
 		return text[startIdx : endIdx+1]
 	}

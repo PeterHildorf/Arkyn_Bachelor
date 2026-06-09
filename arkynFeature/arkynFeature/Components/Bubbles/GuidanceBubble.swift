@@ -4,6 +4,10 @@ struct GuidanceBubble: View {
     let response: MaintenanceGuidance
     let timestamp: Date
 
+    @State private var isGuidanceExpanded: Bool = true
+    @State private var isSafetyExpanded: Bool = true
+    @State private var isSourcesExpanded: Bool = false
+
     var uncertaintyColor: Color {
         switch response.uncertaintyLevel.lowercased() {
         case "low":    return .green
@@ -32,20 +36,36 @@ struct GuidanceBubble: View {
                 // ── Vejledning ──
                 if !response.generalGuidance.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
-                        Label("Vejledning", systemImage: "list.bullet")
-                            .font(.caption).bold()
-                            .foregroundColor(.secondary)
-
-                        ForEach(response.generalGuidance, id: \.self) { point in
-                            HStack(alignment: .top, spacing: 6) {
-                                Image(systemName: "chevron.right")
-                                    .font(.caption2)
-                                    .foregroundColor(.blue)
-                                    .padding(.top, 2)
-                                Text(point)
-                                    .font(.footnote)
-                                    .fixedSize(horizontal: false, vertical: true)
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isGuidanceExpanded.toggle()
                             }
+                        }) {
+                            HStack {
+                                Label("Vejledning", systemImage: "list.bullet")
+                                    .font(.caption).bold()
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Image(systemName: isGuidanceExpanded ? "chevron.down" : "chevron.right")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+
+                        if isGuidanceExpanded {
+                            ForEach(response.generalGuidance, id: \.self) { point in
+                                HStack(alignment: .top, spacing: 8) {
+                                    Image(systemName: "circle.fill")
+                                        .font(.system(size: 6))
+                                        .foregroundColor(.blue)
+                                        .padding(.top, 6)
+                                    Text(point)
+                                        .font(.footnote)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                     }
                 }
@@ -53,20 +73,36 @@ struct GuidanceBubble: View {
                 // ── Sikkerhedsadvarsler ──
                 if !response.safetyNotes.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
-                        Label("Sikkerhed", systemImage: "exclamationmark.shield.fill")
-                            .font(.caption).bold()
-                            .foregroundColor(.orange)
-
-                        ForEach(response.safetyNotes, id: \.self) { note in
-                            HStack(alignment: .top, spacing: 6) {
-                                Image(systemName: "triangle.fill")
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isSafetyExpanded.toggle()
+                            }
+                        }) {
+                            HStack {
+                                Label("Sikkerhed", systemImage: "exclamationmark.shield.fill")
+                                    .font(.caption).bold()
+                                    .foregroundColor(.orange)
+                                Spacer()
+                                Image(systemName: isSafetyExpanded ? "chevron.down" : "chevron.right")
                                     .font(.caption2)
                                     .foregroundColor(.orange)
-                                    .padding(.top, 2)
-                                Text(note)
-                                    .font(.footnote)
-                                    .fixedSize(horizontal: false, vertical: true)
                             }
+                        }
+                        .buttonStyle(.plain)
+
+                        if isSafetyExpanded {
+                            ForEach(response.safetyNotes, id: \.self) { note in
+                                HStack(alignment: .top, spacing: 6) {
+                                    Image(systemName: "triangle.fill")
+                                        .font(.caption2)
+                                        .foregroundColor(.orange)
+                                        .padding(.top, 2)
+                                    Text(note)
+                                        .font(.footnote)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                     }
                     .padding(10)
@@ -77,21 +113,37 @@ struct GuidanceBubble: View {
                 // ── Kilder ──
                 if let sources = response.sourceReferences, !sources.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
-                        Label("Kilder", systemImage: "link")
-                            .font(.caption).bold()
-                            .foregroundColor(.secondary)
-
-                        ForEach(sources, id: \.self) { source in
-                            HStack(alignment: .top, spacing: 6) {
-                                Image(systemName: "doc.text.fill")
-                                    .font(.caption2)
-                                    .foregroundColor(.gray)
-                                    .padding(.top, 2)
-                                Text(source)
-                                    .font(.caption2)
-                                    .foregroundColor(.gray)
-                                    .fixedSize(horizontal: false, vertical: true)
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isSourcesExpanded.toggle()
                             }
+                        }) {
+                            HStack {
+                                Label("Kilder", systemImage: "link")
+                                    .font(.caption).bold()
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Image(systemName: isSourcesExpanded ? "chevron.down" : "chevron.right")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+
+                        if isSourcesExpanded {
+                            ForEach(sources, id: \.self) { source in
+                                HStack(alignment: .top, spacing: 6) {
+                                    Image(systemName: "doc.text.fill")
+                                        .font(.caption2)
+                                        .foregroundColor(.gray)
+                                        .padding(.top, 2)
+                                    Text(source)
+                                        .font(.caption2)
+                                        .foregroundColor(.gray)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                     }
                     .padding(10)

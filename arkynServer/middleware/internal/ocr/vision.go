@@ -7,7 +7,6 @@ import (
 
 	vision "cloud.google.com/go/vision/v2/apiv1"
 	visionpb "cloud.google.com/go/vision/v2/apiv1/visionpb"
-	"google.golang.org/api/option"
 )
 
 // OCRResult holds the raw text and a confidence score produced by Google Vision.
@@ -22,14 +21,14 @@ type VisionClient struct {
 }
 
 // NewVisionClient creates an authenticated Google Vision client.
-// It reads the credentials path from the GOOGLE_APPLICATION_CREDENTIALS env var.
+// It relies on Application Default Credentials (ADC), which automatically
+// reads the GOOGLE_APPLICATION_CREDENTIALS environment variable.
 func NewVisionClient(ctx context.Context) (*VisionClient, error) {
-	credPath := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
-	if credPath == "" {
+	if os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") == "" {
 		return nil, fmt.Errorf("GOOGLE_APPLICATION_CREDENTIALS is not set in environment")
 	}
 
-	client, err := vision.NewImageAnnotatorClient(ctx, option.WithCredentialsFile(credPath))
+	client, err := vision.NewImageAnnotatorClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Vision client: %w", err)
 	}
@@ -90,7 +89,7 @@ func (v *VisionClient) ExtractText(ctx context.Context, imageBytes []byte) (*OCR
 
 // averageSymbolConfidence traverses the full-text annotation hierarchy and
 // computes the mean symbol-level confidence. Returns 1.0 if no confidence data
-// is available (older API responses may omit it).
+// is available.
 func averageSymbolConfidence(annotation *visionpb.TextAnnotation) float64 {
 	var total float64
 	var count int
@@ -111,7 +110,7 @@ func averageSymbolConfidence(annotation *visionpb.TextAnnotation) float64 {
 	}
 
 	if count == 0 {
-		return 1.0 // No confidence data – assume full confidence
+		return 1.0 // No confidence data –> assume full confidence
 	}
 	return total / float64(count)
 }

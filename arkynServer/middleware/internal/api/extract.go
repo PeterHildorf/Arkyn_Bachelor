@@ -18,9 +18,7 @@ const confidenceThreshold = 0.60
 // calls Claude to structure the raw text into typed entities with UI actions.
 func NewExtractHandler(visionClient *ocr.VisionClient, claude *ai.ClaudeClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// ----------------------------------------------------------------
 		// 1. Parse multipart form (max 50 MB for videos)
-		// ----------------------------------------------------------------
 		if err := r.ParseMultipartForm(50 << 20); err != nil {
 			writeJSON(w, http.StatusBadRequest, errorResponse("failed to parse multipart form: "+err.Error()))
 			return
@@ -42,10 +40,8 @@ func NewExtractHandler(visionClient *ocr.VisionClient, claude *ai.ClaudeClient) 
 				writeJSON(w, http.StatusBadRequest, errorResponse("uploaded image is empty"))
 				return
 			}
-			
-			// ----------------------------------------------------------------
+
 			// 2a. Google Cloud Vision OCR (Image)
-			// ----------------------------------------------------------------
 			ocrResult, err := visionClient.ExtractText(r.Context(), imageBytes)
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, errorResponse(fmt.Sprintf("OCR failed: %v", err)))
@@ -62,9 +58,7 @@ func NewExtractHandler(visionClient *ocr.VisionClient, claude *ai.ClaudeClient) 
 			}
 			defer videoFile.Close()
 
-			// ----------------------------------------------------------------
 			// 2b. Video Processing (Extract Frames + OCR)
-			// ----------------------------------------------------------------
 			var err error
 			rawText, confidence, err = processVideo(r.Context(), videoFile, visionClient)
 			if err != nil {
@@ -73,9 +67,7 @@ func NewExtractHandler(visionClient *ocr.VisionClient, claude *ai.ClaudeClient) 
 			}
 		}
 
-		// ----------------------------------------------------------------
 		// 3. Low-confidence guard – flag without calling Claude
-		// ----------------------------------------------------------------
 		if rawText == "" {
 			writeJSON(w, http.StatusOK, ai.ExtractionResult{
 				Entities:         []ai.Entity{},
@@ -96,9 +88,7 @@ func NewExtractHandler(visionClient *ocr.VisionClient, claude *ai.ClaudeClient) 
 			return
 		}
 
-		// ----------------------------------------------------------------
 		// 4. Claude: format raw OCR text into structured entities
-		// ----------------------------------------------------------------
 		entities, err := claude.FormatEntities(r.Context(), rawText, confidence)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, errorResponse(fmt.Sprintf("entity formatting failed: %v", err)))

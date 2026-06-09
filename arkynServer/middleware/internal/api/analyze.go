@@ -21,9 +21,7 @@ type analyzeRequest struct {
 // NewAnalyzeHandler returns the handler for POST /api/v1/analyze.
 func NewAnalyzeHandler(claude *ai.ClaudeClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// ----------------------------------------------------------------
 		// 1. Decode JSON body
-		// ----------------------------------------------------------------
 		var req analyzeRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, errorResponse("invalid JSON body"))
@@ -35,9 +33,7 @@ func NewAnalyzeHandler(claude *ai.ClaudeClient) http.HandlerFunc {
 			return
 		}
 
-		// ----------------------------------------------------------------
 		// 2. Call Claude for focused maintenance guidance
-		// ----------------------------------------------------------------
 		guidance, err := claude.AnalyzeTarget(r.Context(), ai.AnalyzeTargetRequest{
 			TargetLabel:  req.TargetLabel,
 			TargetValue:  req.TargetValue,
