@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	// Load .env file if it exists (ignored in production where env vars are set directly)
+	// Load .env file if it exists
 	if err := godotenv.Load(); err != nil {
 		if !os.IsNotExist(err) {
 			log.Printf("Warning: could not load .env file: %v", err)
